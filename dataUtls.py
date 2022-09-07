@@ -169,7 +169,7 @@ def nonNanFromDims( dfr, dim = 1 ):
     
     _thresh = nanThreshold( [ nval for _, nval in nonNans ] )
     keepVals = [ kval for kval, nnul in nonNans if nnul >= _thresh ]
-    print( f"non-nan[ {len( keepVals )} ] thr[ {_thresh} ] dim[ {dim} ]" )
+    # print( f"non-nan[ {len( keepVals )} ] thr[ {_thresh} ] dim[ {dim} ]" )
     
     return keepVals
 
@@ -213,11 +213,11 @@ def cleanReport(dfOrig, dfClean ):
     dfDim = dfClean.shape[ 0 ] * dfClean.shape[ 1 ]
     return (
         f"factbook originally shape: {dfOrig.shape}\n"
-        f"    NAN-density: {(fbIsNa / fbDim):.2f}% "
-        f"({fbIsNa} NaN in {fbDim})\n"
+        f"    NAN-density: {(fbIsNa / fbDim)*100:.2f}% "
+        f"({fbIsNa} NaN in {fbDim} values)\n"
         f"clean dataframe has shape: {dfClean.shape}\n"
-        f"    NAN-density: {(dfIsNa / dfDim):.2f}% "
-        f"({dfIsNa} NaN in {dfDim})\n" )
+        f"    NAN-density: {(dfIsNa / dfDim )*100:.2f}% "
+        f"({dfIsNa} NaN in {dfDim} values)\n" )
 
 
 def runScaleAnalysis( dfr, remDict ):
@@ -346,8 +346,18 @@ def showTopTen( featName, _df, asc = False, subtitle = None, unit = None ):
     plt.show()
 
 
+def getRank( _df, ctry, feature ):
+    value = _df[ feature ].loc[ _df[ 'Country' ] == ctry ].values[ 0 ]
+    if str( value ) == 'nan': return print( f"{ctry} is null for\n{feature}" )
+    rank = len( [ v for v in pd.Series( _df[ feature ] ) if v < value ] )
+    ties = len( [ v for v in pd.Series( _df[ feature ] ) if v == value ] ) - 1
+    print( f"With value of [ {value} ], {ctry} is {rank}th-highest for:\n"
+           f"'{feature}'\n(out of total {_df.shape[0]} ranked)" )
+    if ties > 0: print( f"TIED WITH {ties} COUNTRIES" )
 
 
+def getVal( _df, _ctry, _feat ):
+    return _df.loc[ _df[ 'Country' ] == _ctry, _feat ].iloc[ 0 ]
 
 # END_INCLUDE
 
