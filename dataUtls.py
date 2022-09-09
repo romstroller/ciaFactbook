@@ -1,11 +1,18 @@
+
+# os ops
 from FileTools import FileTools  # see github.com/romstroller/FileTools
+import pickle
+import os
+
+# notebook graphics
+from IPython.display import display, HTML
 from matplotlib import pyplot as plt
+
+# data manip
 import pandas as pd
 import numpy as np
-import pickle
 import math
 import re
-import os
 
 
 fTools = FileTools()
@@ -358,6 +365,101 @@ def getRank( _df, ctry, feature ):
 
 def getVal( _df, _ctry, _feat ):
     return _df.loc[ _df[ 'Country' ] == _ctry, _feat ].iloc[ 0 ]
+
+
+def getCorDct( _df ):
+    """ Generate CORRELATION DICTIONARY where keys are feature pairs,
+        frozensets as keys for reversible feat lookup
+        values are correlations. """
+    fset = frozenset
+    correlDict = { }
+    baseCol = 1
+    while True:
+        # for each feat, get any correls for each feat to the right
+        for colPos in range( baseCol + 1, _df.shape[ 1 ] ):
+            correlns = _df.iloc[ :, baseCol ].corr( _df.iloc[ :, colPos ] )
+            correlDict.update( { fset( [ baseCol, colPos ] ): correlns } )
+        
+        baseCol += 1
+        if baseCol == _df.shape[ 1 ]:
+            print( f"Completed correlations" )
+            return correlDict
+            
+
+def getCThreshDct( inn_lim, cDict, _df, out_lim = float( 'inf' )  ):
+    # Examine features with correlations within specified threshold
+    # explore different thesholds
+    """collect feature correlations within specified significance range"""
+    threshDict = { }
+    for key in cDict:
+        corr = cDict[ key ]
+        bCol = list( key )[ 0 ]
+        cCol = list( key )[ 1 ]
+        if (-out_lim < corr <= -inn_lim) or (inn_lim <= corr < out_lim):
+            threshDict[ key ] = {
+                'corr': corr,
+                'inn_lim': inn_lim,
+                'baseCol': bCol,
+                'compCol': cCol,
+                'out_lim': out_lim if out_lim != float( 'inf' ) else "inf",
+                'baseName': _df.columns[ bCol ],
+                'compName': _df.columns[ cCol ] }
+    return threshDict
+
+
+def repCorrel( _df, correlDict, fts ):
+    bCol, cPos = [ list( _df.columns ).index( ft ) for ft in fts ]
+    return f" LIN. CORR: {correlDict[ frozenset( [ bCol, cPos ] ) ]}"
+
+
+def plotScttr( _df, fts ):
+    print( f"Feats: [ {fts[ 0 ]} ]\n       [ {fts[ 1 ]} ]" )
+    plt.plot( _df[ fts[ 0 ] ], _df[ fts[ 1 ] ], 'o', color='black' )
+    plt.show()
+
+
+# def plotScttrDbl( _df, fts, fts2 ):
+#     for ft in [ fts, fts2 ]: print( f"Fts: [ {ft[ 0 ]} ]\n     [ {ft[ 1 ]} ]" )
+#     fig, (ax1, ax2) = plt.subplots( 1, 2, sharey='all' )  # 1 row, 2 col
+#     ax1.scatter( _df[ fts[ 0 ] ], _df[ fts[ 1 ] ], c='blue' )
+#     ax2.scatter( _df[ fts2[ 0 ] ], _df[ fts2[ 1 ] ], c='red' )
+#     ax1.set_xlabel( fts[ 1 ] )
+#     ax2.set_xlabel( fts2[ 1 ] )
+#     plt.show()
+
+
+def showDiffsFilled( tDict, _df ):
+    """Identify and report value differences between correlated features"""
+    difDct = { }
+    for k in tDict:
+        bCol, cCol = [ _df.columns[ f ] for f in list( k ) ]
+        dfCompare = _df[ [ bCol, cCol ] ].loc[ ~(_df[ bCol ] == _df[ cCol ]) ]
+        if len( dfCompare.dropna() ) < 1: print( f"{list( k )}: diffs all NaN" )
+        else: difDct.update( { k: dfCompare } )
+    if len( difDct ) < 1: print( "\nREPORTING NON-NAN DIFFERENCES CORR. FEATS" )
+    for k in difDct:
+        difDf = pd.concat( [ _df[ 'Country' ], difDct[ k ] ], axis=1 ).dropna()
+        print( f"\n{len( difDf )} Non-NaN diffs for {list( k )}. First 3:" )
+        display( HTML( difDf[ :3 ].to_html() ) )
+    return difDct
+
+
+def getThreshReport( tDct, _key ):
+    """output feature detail for sig range """
+    colRef = str( list( _key ) )
+    record = tDct[ _key ]
+    corr = record[ 'corr' ]
+    inn_lim = record[ 'inn_lim' ]
+    out_lim = record[ 'out_lim' ]
+    baseName = record[ 'baseName' ]
+    compName = record[ 'compName' ]
+    return (
+        f"CORRELATION FOR FEAT-PAIR {colRef}"
+        f"\nIN THRESHOLD +-=[ {inn_lim}-{out_lim} ] "
+        f"\nCORR: {corr}"
+        f"\nBASE: {baseName}"
+        f"\nCOMP: {compName}\n")
+
 
 # END_INCLUDE
 
