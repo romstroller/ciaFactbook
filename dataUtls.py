@@ -418,6 +418,14 @@ def plotScttr( _df, fts ):
     plt.show()
 
 
+def cycleT10( _df, start=0, showN=1, asc=False ):
+    # iterate feats through T10 analysis (progress)
+    print( f"FEAT {start}-{start + showN} of {len( _df.columns )}" )
+    for i in list( _df.columns )[ start:start + showN ]:
+        showTopTen( i, _df, asc )
+        start += showN
+
+
 # def plotScttrDbl( _df, fts, fts2 ):
 #     for ft in [ fts, fts2 ]: print( f"Fts: [ {ft[ 0 ]} ]\n     [ {ft[ 1 ]} ]" )
 #     fig, (ax1, ax2) = plt.subplots( 1, 2, sharey='all' )  # 1 row, 2 col
