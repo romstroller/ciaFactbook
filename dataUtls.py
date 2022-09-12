@@ -8,7 +8,8 @@ import os
 from IPython.display import display, HTML
 from matplotlib import pyplot as plt
 
-# data manip
+# data explore / manip
+from collections import Counter
 import pandas as pd
 import numpy as np
 import math
@@ -16,6 +17,10 @@ import re
 
 
 fTools = FileTools()
+
+
+def typeCount( _df ):
+    return Counter( [ i[ 1 ] for i in _df.dtypes.items() ] ).most_common()
 
 
 def excludeParenth( _mtchLi, _val ):
