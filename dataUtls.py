@@ -1,4 +1,3 @@
-
 # os ops
 from FileTools import FileTools  # see github.com/romstroller/FileTools
 import pickle
@@ -14,7 +13,6 @@ import pandas as pd
 import numpy as np
 import math
 import re
-
 
 fTools = FileTools()
 
@@ -88,8 +86,7 @@ def getMatchRemain( df_in, coIdex, patrn ):
 patt = re.compile( r'([+-]?\d{1,3}(?:,\d{3})*(?:\.\d+)?|\d*\.\d+|\d+)' )
 
 
-def generateMatchDct(dffBook):
-    
+def generateMatchDct( dffBook ):
     dfFbDict = { }  # collect column data
     
     colDex = 1
@@ -109,7 +106,7 @@ def generateMatchDct(dffBook):
         colDict[ 'origCol' ] = origCol
         dfFbDict[ colName ] = colDict
         colDex += 1
-        
+    
     return dfFbDict
 
 
@@ -123,7 +120,7 @@ def sortMatches( matchList ):
             firstVals.append( float( ''.join( el[ 0 ].split( ',' ) ) ) )
             splitVals.append( [ v for v in el[ 1: ] ] )
         elif type( el ) == np.float64:
-            firstVals.append( float(el) )
+            firstVals.append( float( el ) )
         else:  # check all else are either nan or empty matchlist
             if ((type( el ) == list and len( el ) > 0) or
                 (type( el ) != list and math.isnan( el ) is False)):
@@ -133,7 +130,7 @@ def sortMatches( matchList ):
     return firstVals, splitVals, checkVals
 
 
-def isolateClean(_dfFbDict):
+def isolateClean( _dfFbDict ):
     # apply split-sort to match records
     for col in _dfFbDict:
         colDict = _dfFbDict[ col ]
@@ -149,7 +146,7 @@ def isolateClean(_dfFbDict):
             for t, v in egTVals: print( f"[{v}] is [{t}]\n" )
 
 
-def getCleanDF(_dfFbDict, _df):
+def getCleanDF( _dfFbDict, _df ):
     # dictionary columns to DF, checking is now float
     newCols = [ ]
     cleanDF = _df.iloc[ :, 0 ]  # start with countries
@@ -187,7 +184,7 @@ def nonNanFromDims( dfr, dim = 1 ):
 
 
 # DROP ROWS - disabled to keep all significant countries
-def cleanRows(dfFloat):
+def cleanRows( dfFloat ):
     dfClean = pd.DataFrame( nonNanFromDims( dfFloat, dim=0 ) )
     # add a columnindex row to track names of kept columns
     dfClean.loc[ -1 ] = dfFloat.columns
@@ -204,7 +201,7 @@ def cleanRows(dfFloat):
 # dfColsClean = dfRCC
 
 
-def getNumericNonNan(_df):
+def getNumericNonNan( _df ):
     # Enforce non-nan threshold for dimensions
     #   ( av. density plus .5 standard deviation (rounded) ),
     # convert to numeric, adding featname row for tracking through clean
@@ -218,18 +215,18 @@ def getNumericNonNan(_df):
     return dfNumClean
 
 
-def cleanReport(dfOrig, dfClean ):
+def cleanReport( dfOrig, dfClean ):
     fbIsNa = dfOrig.isna().sum().sum()
     dfIsNa = dfClean.isna().sum().sum()
     fbDim = dfOrig.shape[ 0 ] * dfOrig.shape[ 1 ]
     dfDim = dfClean.shape[ 0 ] * dfClean.shape[ 1 ]
     return (
         f"factbook originally shape: {dfOrig.shape}\n"
-        f"    NAN-density: {(fbIsNa / fbDim)*100:.2f}% "
+        f"    NAN-density: {(fbIsNa / fbDim) * 100:.2f}% "
         f"({fbIsNa} NaN in {fbDim} values)\n"
         f"clean dataframe has shape: {dfClean.shape}\n"
-        f"    NAN-density: {(dfIsNa / dfDim )*100:.2f}% "
-        f"({dfIsNa} NaN in {dfDim} values)\n" )
+        f"    NAN-density: {(dfIsNa / dfDim) * 100:.2f}% "
+        f"({dfIsNa} NaN in {dfDim} values)\n")
 
 
 def runScaleAnalysis( dfr, remDict ):
@@ -260,9 +257,10 @@ def runScaleAnalysis( dfr, remDict ):
         else: cleanNotes.update( {
             colNam: input( f"{report[ :250 ]}...\n\n\nCLEANING/SCALE NOTE" ) } )
     
-    def fName(ob): return f'{ob=}'.split('=')[0]
+    def fName( ob ): return f'{ob=}'.split( '=' )[ 0 ]
+    
     for obj in [ dropFeatrs, cleanNotes ]:
-        fTools.storePKL( obj, f'{fName(obj)}_{fTools.dtStamp()}', os.getcwd() )
+        fTools.storePKL( obj, f'{fName( obj )}_{fTools.dtStamp()}', os.getcwd() )
 
 
 def loadSDdata():
@@ -278,7 +276,7 @@ def loadSDdata():
     return dFeats, sNotes
 
 
-def omitDropped(_df, dropFeats):
+def omitDropped( _df, dropFeats ):
     # apply drop to flagged features
     dfDropped = _df.copy()
     for i in dropFeats:
@@ -287,7 +285,7 @@ def omitDropped(_df, dropFeats):
     return dfDropped
 
 
-def flattenScale(_df, dfDct, scaleNotes, dffBook, dropFeats):
+def flattenScale( _df, dfDct, scaleNotes, dffBook, dropFeats ):
     scaleDict = {
         "million": 1000000, "billion": 1000000000, "trillion": 1000000000000 }
     
@@ -327,6 +325,27 @@ def flattenScale(_df, dfDct, scaleNotes, dffBook, dropFeats):
         return _df, cleanCtry
 
 
+def popRows_byFtVal( _df, ftNam, vals ):
+    
+    df_OrCols = _df.columns
+    dexVals = _df.iloc[:, 0].values.tolist()  # get first col vals as index
+    popDexs = [ _df.index[_df[ftNam] == val].tolist() for val in vals ]
+    df_t = _df.copy().T
+    df_t.columns = _df[df_OrCols[0]].tolist()
+
+    popRows = [ df_t.pop(dexVals[val]) for group in popDexs for val in group ]
+    
+    return df_t.drop(df_t.columns[0], axis=1).T, popRows
+    
+
+def numCtry( _df ):
+    ctrDct = { i: c for i, c in enumerate( _df[ 'Country' ].tolist() ) }
+    ctrDct_R = {c: i for i, c in ctrDct.items()}
+    _df['Country'] = _df['Country'].replace(ctrDct_R)
+    
+    return _df, ctrDct, ctrDct_R
+
+
 def showTopTen( featName, _df, asc = False, subtitle = None, unit = None ):
     print( featName )
     
@@ -364,7 +383,7 @@ def getRank( _df, ctry, feature ):
     rank = len( [ v for v in pd.Series( _df[ feature ] ) if v < value ] )
     ties = len( [ v for v in pd.Series( _df[ feature ] ) if v == value ] ) - 1
     print( f"With value of [ {value} ], {ctry} is {rank}th-highest for:\n"
-           f"'{feature}'\n(out of total {_df.shape[0]} ranked)" )
+           f"'{feature}'\n(out of total {_df.shape[ 0 ]} ranked)" )
     if ties > 0: print( f"TIED WITH {ties} COUNTRIES" )
 
 
@@ -389,9 +408,9 @@ def getCorDct( _df ):
         if baseCol == _df.shape[ 1 ]:
             print( f"Completed correlations" )
             return correlDict
-            
 
-def getCThreshDct( inn_lim, cDict, _df, out_lim = float( 'inf' )  ):
+
+def getCThreshDct( inn_lim, cDict, _df, out_lim = float( 'inf' ) ):
     # Examine features with correlations within specified threshold
     # explore different thesholds
     """collect feature correlations within specified significance range"""
@@ -423,7 +442,7 @@ def plotScttr( _df, fts ):
     plt.show()
 
 
-def cycleT10( _df, start=0, showN=1, asc=False ):
+def cycleT10( _df, start = 0, showN = 1, asc = False ):
     # iterate feats through T10 analysis (progress)
     print( f"FEAT {start}-{start + showN} of {len( _df.columns )}" )
     for i in list( _df.columns )[ start:start + showN ]:
@@ -472,7 +491,6 @@ def getThreshReport( tDct, _key ):
         f"\nCORR: {corr}"
         f"\nBASE: {baseName}"
         f"\nCOMP: {compName}\n")
-
 
 # END_INCLUDE
 
