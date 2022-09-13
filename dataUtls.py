@@ -1,20 +1,25 @@
+
 # os ops
-from FileTools import FileTools  # see github.com/romstroller/FileTools
+from osOps import osKit  # see github.com/romstroller/FileTools
 import pickle
 import os
 
-# notebook graphics
-from IPython.display import display, HTML
-from matplotlib import pyplot as plt
-
 # data explore / manip
 from collections import Counter
+from scipy.stats import zscore
+import seaborn as sns
 import pandas as pd
 import numpy as np
+import scipy
 import math
 import re
 
-fTools = FileTools()
+# visualization / notebook graphics
+from IPython.display import display, HTML
+import matplotlib.pyplot as plt
+
+
+osKit = osKit()
 
 
 def typeCount( _df ):
@@ -260,14 +265,14 @@ def runScaleAnalysis( dfr, remDict ):
     def fName( ob ): return f'{ob=}'.split( '=' )[ 0 ]
     
     for obj in [ dropFeatrs, cleanNotes ]:
-        fTools.storePKL( obj, f'{fName( obj )}_{fTools.dtStamp()}', os.getcwd() )
+        osKit.storePKL( obj, f'{fName( obj )}_{osKit.dtStamp()}', os.getcwd() )
 
 
 def loadSDdata():
     pklFiles = [ fi for fi in
         [ open( pth, 'rb' ) for pth in
             [ list( dKey )[ 0 ] for dKey in
-                [ fTools.datesortFiles( os.getcwd(), fNam ) for fNam in
+                [ osKit.datesortFiles( os.getcwd(), fNam ) for fNam in
                     [ 'dropFeatrs', 'cleanNotes' ] ] ] ] ]
     
     dFeats, sNotes = [ pickle.load( fi ) for fi in pklFiles ]
@@ -342,8 +347,29 @@ def numCtry( _df ):
     ctrDct = { i: c for i, c in enumerate( _df[ 'Country' ].tolist() ) }
     ctrDct_R = {c: i for i, c in ctrDct.items()}
     _df['Country'] = _df['Country'].replace(ctrDct_R)
+    dfNu = _df.apply(pd.to_numeric)
+    return dfNu, ctrDct, ctrDct_R
+
+
+def showPDens( _df, _ft ):
     
-    return _df, ctrDct, ctrDct_R
+    def map_pdf( _x, **kwargs ):
+        if not kwargs: pass
+        mu, std = scipy.stats.norm.fit( _x )
+        x0, x1 = p1.axes[ 0 ][ 0 ].get_xlim()
+        x_pdf = np.linspace( x0, x1, 100 )
+        y_pdf = scipy.stats.norm.pdf( x_pdf, mu, std )
+        plt.plot( x_pdf, y_pdf, c='r' )
+    
+    _df = pd.DataFrame(  # take only finite (non-NaN) values
+        { _ft: [ v for v in _df[ _ft ].values.tolist() if np.isfinite( v ) ] } )
+    
+    p1 = sns.displot(
+        data=_df, x=_ft, kind='hist', bins=_df.shape[ 0 ], stat='density' )
+    p1.figure.set_figwidth( 16 )
+    p1.figure.set_figheight( 9 )
+    p1.figure.set_facecolor( 'Silver' )
+    p1.map( map_pdf, _ft )
 
 
 def showTopTen( featName, _df, asc = False, subtitle = None, unit = None ):
@@ -385,6 +411,41 @@ def getRank( _df, ctry, feature ):
     print( f"With value of [ {value} ], {ctry} is {rank}th-highest for:\n"
            f"'{feature}'\n(out of total {_df.shape[ 0 ]} ranked)" )
     if ties > 0: print( f"TIED WITH {ties} COUNTRIES" )
+
+
+def dfPrint( _df ):
+    # options at https://pandas.pydata.org/docs/user_guide/options.html
+    with pd.option_context('display.max_rows', None, 'display.max_columns',
+        None): print( _df )
+ 
+
+def getDF_ZThresh( _df, _ft, zThresh, dfOrig, _ctrDct, excl=False ):
+    # get country and value for non-nan values of selected feature
+    vLi = [ [ c, v ] for c, v in zip( _df[ 'Country' ].values.tolist(),
+        _df[ _ft ].values.tolist() ) if np.isfinite( v ) ]
+    
+    # get ctry int, name, value and z-score for values
+    dfCi = pd.DataFrame( c for c, n in vLi )
+    dfCn = pd.DataFrame( _ctrDct[ c ] for c, n in vLi )
+    dfZ = (dfN := pd.DataFrame( n for c, n in vLi )).apply( zscore )
+    
+    # get original string value from raw-loaded dataset
+    dfO = pd.DataFrame( dfOrig.loc[ dfOrig[ 'Country' ] == _ctrDct[ c ],
+        _ft ].iloc[ 0 ] for c, n in vLi )
+    
+    # concat as df and limit to outside +- zScore threshold
+    dfCZ = pd.concat( [ dfCi, dfCn, dfZ, dfN, dfO ], axis=1 )
+    dfCZ.columns = [ 'CTRY_i', 'CTRY_n', 'Z_VAL', 'E_VAL', 'O_STR' ]
+    
+    # if excl ("exclude"), return df within threshold instead out outliers
+    dfL = ( dfCZ.loc[ ((dfCZ.Z_VAL >= zThresh) | (dfCZ.Z_VAL <= -zThresh)) ]
+        if not excl else
+        dfCZ.loc[ ((dfCZ.Z_VAL <= zThresh) & (dfCZ.Z_VAL >= -zThresh)) ] )
+    
+    dfSort = dfL.sort_values('Z_VAL', ascending=False)
+    print( f"Z_SCORES >+/<- THRESH [ {zThresh} ] for NON-NaN vals in:\n{_ft}" )
+    display(dfSort)  # dfPrint( dfSort )
+    return dfSort
 
 
 def getVal( _df, _ctry, _feat ):
