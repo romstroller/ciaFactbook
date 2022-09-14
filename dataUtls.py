@@ -1,6 +1,6 @@
 
 # os ops
-from osOps import osKit  # see github.com/romstroller/FileTools
+from osOps import OsKit  # see github.com/romstroller/FileTools
 import pickle
 import os
 
@@ -19,7 +19,7 @@ from IPython.display import display, HTML
 import matplotlib.pyplot as plt
 
 
-osKit = osKit()
+osKit = OsKit()
 
 
 def typeCount( _df ):
@@ -419,7 +419,7 @@ def dfPrint( _df ):
         None): print( _df )
  
 
-def getDF_ZThresh( _df, _ft, zThresh, dfOrig, _ctrDct, excl=False ):
+def getDF_ZThresh( _df, _ft, zThresh, dfOrig, _ctrDct, excl=False, asc=False ):
     # get country and value for non-nan values of selected feature
     vLi = [ [ c, v ] for c, v in zip( _df[ 'Country' ].values.tolist(),
         _df[ _ft ].values.tolist() ) if np.isfinite( v ) ]
@@ -442,8 +442,9 @@ def getDF_ZThresh( _df, _ft, zThresh, dfOrig, _ctrDct, excl=False ):
         if not excl else
         dfCZ.loc[ ((dfCZ.Z_VAL <= zThresh) & (dfCZ.Z_VAL >= -zThresh)) ] )
     
-    dfSort = dfL.sort_values('Z_VAL', ascending=False)
-    print( f"Z_SCORES >+/<- THRESH [ {zThresh} ] for NON-NaN vals in:\n{_ft}" )
+    dfSort = dfL.sort_values('Z_VAL', ascending=asc)
+    inc = 'OUTSIDE' if not excl else 'INSIDE'
+    print( f"Z_SCORES {inc} >+/<-[ {zThresh} ] for non-NaN vals in:\n{_ft}" )
     display(dfSort)  # dfPrint( dfSort )
     return dfSort
 
