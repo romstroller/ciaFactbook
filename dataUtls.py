@@ -220,16 +220,16 @@ def getNumericNonNan( _df ):
     return dfNumClean
 
 
-def cleanReport( dfOrig, dfClean ):
+def cleanReport( dfOrig, dfClean, origTtl, cleaTtl ):
     fbIsNa = dfOrig.isna().sum().sum()
     dfIsNa = dfClean.isna().sum().sum()
     fbDim = dfOrig.shape[ 0 ] * dfOrig.shape[ 1 ]
     dfDim = dfClean.shape[ 0 ] * dfClean.shape[ 1 ]
     return (
-        f"factbook originally shape: {dfOrig.shape}\n"
+        f"{origTtl} shape: {dfOrig.shape}\n"
         f"    NAN-density: {(fbIsNa / fbDim) * 100:.2f}% "
         f"({fbIsNa} NaN in {fbDim} values)\n"
-        f"clean dataframe has shape: {dfClean.shape}\n"
+        f"{cleaTtl} shape: {dfClean.shape}\n"
         f"    NAN-density: {(dfIsNa / dfDim) * 100:.2f}% "
         f"({dfIsNa} NaN in {dfDim} values)\n")
 
@@ -353,6 +353,8 @@ def numCtry( _df ):
 
 def showPDens( _df, _ft ):
     
+    print( f"PROBABILITY DENSITY FOR:\n{_ft}" )
+    
     def map_pdf( _x, **kwargs ):
         if not kwargs: pass
         mu, std = scipy.stats.norm.fit( _x )
@@ -446,7 +448,7 @@ def getDF_ZThresh( _df, _ft, zThresh, dfOrig, _ctrDct, excl=False, asc=False ):
     inc = 'OUTSIDE' if not excl else 'INSIDE'
     print( f"Z_SCORES {inc} >+/<-[ {zThresh} ] for non-NaN vals in:\n{_ft}" )
     display(dfSort)  # dfPrint( dfSort )
-    return dfSort
+    # return dfSort
 
 
 def getVal( _df, _ctry, _feat ):
@@ -468,7 +470,7 @@ def getCorDct( _df ):
         
         baseCol += 1
         if baseCol == _df.shape[ 1 ]:
-            print( f"Completed correlations" )
+            print( f"Compiled {len(correlDict)} correlations" )
             return correlDict
 
 
@@ -528,12 +530,15 @@ def showDiffsFilled( tDict, _df ):
     for k in tDict:
         bCol, cCol = [ _df.columns[ f ] for f in list( k ) ]
         dfCompare = _df[ [ bCol, cCol ] ].loc[ ~(_df[ bCol ] == _df[ cCol ]) ]
-        if len( dfCompare.dropna() ) < 1: print( f"{list( k )}: diffs all NaN" )
+        if len( dfCompare.dropna() ) < 1:
+            print( f"{getThreshReport( tDict, k )}" )
+            print( f"\n{list( k )}: DIFFERENCES ALL NaN\n" )
         else: difDct.update( { k: dfCompare } )
     if len( difDct ) < 1: print( "\nREPORTING NON-NAN DIFFERENCES CORR. FEATS" )
     for k in difDct:
         difDf = pd.concat( [ _df[ 'Country' ], difDct[ k ] ], axis=1 ).dropna()
-        print( f"\n{len( difDf )} Non-NaN diffs for {list( k )}. First 3:" )
+        print( f"{getThreshReport( tDict, k )}" )
+        print( f"{len( difDf )} Non-NaN diffs for {list( k )}. First 3:" )
         display( HTML( difDf[ :3 ].to_html() ) )
     return difDct
 
@@ -548,11 +553,11 @@ def getThreshReport( tDct, _key ):
     baseName = record[ 'baseName' ]
     compName = record[ 'compName' ]
     return (
-        f"CORRELATION FOR FEAT-PAIR {colRef}"
+        f"\nCORRELATION FOR FEAT-PAIR {colRef}"
         f"\nIN THRESHOLD +-=[ {inn_lim}-{out_lim} ] "
         f"\nCORR: {corr}"
         f"\nBASE: {baseName}"
-        f"\nCOMP: {compName}\n")
+        f"\nCOMP: {compName}")
 
 # END_INCLUDE
 
