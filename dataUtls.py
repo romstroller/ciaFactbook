@@ -1,4 +1,3 @@
-
 # os ops
 from osOps import OsKit  # see github.com/romstroller/FileTools
 import pickle
@@ -18,8 +17,28 @@ import re
 from IPython.display import display, HTML
 import matplotlib.pyplot as plt
 
+pd.set_option( 'display.float_format', lambda x: '%.3f' % x )
 
 osKit = OsKit()
+f64 = np.float64
+
+# REGEX:
+#   capture group             (
+#   zero/one                  [+-]?             possible number sign
+#   1-3 nums                  \d{1,3}           up to three straight nums
+#   non-capture subgroup      (?:               possible thousand-groups
+#     comma and 3 nums          ,\d{3}          (sep. comma)
+#     zero or more times        )*
+#   non-capture subgroup      (?:               then possible decimal part
+#     decimal and 1+nums        \.\d+
+#     zero/one time             )?
+#   OR (alt. to last seq)     |                 or no groups, just
+#     0+ nums, dec, 1+nums      \d*\.\d+        more nums and poss decimal
+#   OR (alt. to last seq)     |
+#     1+ nums                   \d+             or just more numbers.
+#   Close capture group       )
+#   ( only match "plain" number format last to capture complex num segments )
+patt = re.compile( r'([+-]?\d{1,3}(?:,\d{3})*(?:\.\d+)?|\d*\.\d+|\d+)' )
 
 
 def typeCount( _df ):
@@ -69,26 +88,6 @@ def getMatchRemain( df_in, coIdex, patrn ):
         pos += 1
     
     return mtches_ret, rmnder
-
-
-# REGEX:
-#   capture group             (
-#   zero/one                  [+-]?             possible number sign
-#   1-3 nums                  \d{1,3}           up to three straight nums
-#   non-capture subgroup      (?:               possible thousand-groups
-#     comma and 3 nums          ,\d{3}          (sep. comma)
-#     zero or more times        )*
-#   non-capture subgroup      (?:               then possible decimal part
-#     decimal and 1+nums        \.\d+
-#     zero/one time             )?
-#   OR (alt. to last seq)     |                 or no groups, just
-#     0+ nums, dec, 1+nums      \d*\.\d+        more nums and poss decimal
-#   OR (alt. to last seq)     |
-#     1+ nums                   \d+             or just more numbers.
-#   Close capture group       )
-#   ( only match "plain" number format last to capture complex num segments )
-
-patt = re.compile( r'([+-]?\d{1,3}(?:,\d{3})*(?:\.\d+)?|\d*\.\d+|\d+)' )
 
 
 def generateMatchDct( dffBook ):
@@ -331,28 +330,26 @@ def flattenScale( _df, dfDct, scaleNotes, dffBook, dropFeats ):
 
 
 def popRows_byFtVal( _df, ftNam, vals ):
-    
     df_OrCols = _df.columns
-    dexVals = _df.iloc[:, 0].values.tolist()  # get first col vals as index
-    popDexs = [ _df.index[_df[ftNam] == val].tolist() for val in vals ]
+    dexVals = _df.iloc[ :, 0 ].values.tolist()  # get first col vals as index
+    popDexs = [ _df.index[ _df[ ftNam ] == val ].tolist() for val in vals ]
     df_t = _df.copy().T
-    df_t.columns = _df[df_OrCols[0]].tolist()
+    df_t.columns = _df[ df_OrCols[ 0 ] ].tolist()
+    
+    popRows = [ df_t.pop( dexVals[ val ] ) for group in popDexs for val in group ]
+    
+    return df_t.drop( df_t.columns[ 0 ], axis=1 ).T, popRows
 
-    popRows = [ df_t.pop(dexVals[val]) for group in popDexs for val in group ]
-    
-    return df_t.drop(df_t.columns[0], axis=1).T, popRows
-    
 
 def numCtry( _df ):
     ctrDct = { i: c for i, c in enumerate( _df[ 'Country' ].tolist() ) }
-    ctrDct_R = {c: i for i, c in ctrDct.items()}
-    _df['Country'] = _df['Country'].replace(ctrDct_R)
-    dfNu = _df.apply(pd.to_numeric)
+    ctrDct_R = { c: i for i, c in ctrDct.items() }
+    _df[ 'Country' ] = _df[ 'Country' ].replace( ctrDct_R )
+    dfNu = _df.apply( pd.to_numeric )
     return dfNu, ctrDct, ctrDct_R
 
 
 def showPDens( _df, _ft ):
-    
     print( f"PROBABILITY DENSITY FOR:\n{_ft}" )
     
     def map_pdf( _x, **kwargs ):
@@ -362,6 +359,7 @@ def showPDens( _df, _ft ):
         x_pdf = np.linspace( x0, x1, 100 )
         y_pdf = scipy.stats.norm.pdf( x_pdf, mu, std )
         plt.plot( x_pdf, y_pdf, c='r' )
+        plt.show()
     
     _df = pd.DataFrame(  # take only finite (non-NaN) values
         { _ft: [ v for v in _df[ _ft ].values.tolist() if np.isfinite( v ) ] } )
@@ -374,19 +372,22 @@ def showPDens( _df, _ft ):
     p1.map( map_pdf, _ft )
 
 
-def showTopTen( featName, _df, asc = False, subtitle = None, unit = None ):
+def showMaxima( featName, _df, n = 10, asc = False, sub = None, unit = None ):
     print( featName )
     
     df10 = pd.concat( [ _df[ 'Country' ],
         pd.Series( _df[ featName ] ) ], axis=1 ).sort_values( by=[ featName ],
-        ascending=asc )[ :10 ]
+        ascending=asc )[ :n ]
     
     fig = plt.figure( facecolor="silver" )
     ax = fig.add_axes( [ 0, 0, 1.2, 1.2 ] )
     ax.bar( df10.iloc[ :, 0 ], df10.iloc[ :, 1 ] )
     
-    title = f"{'BOTTOM' if asc else 'TOP'} TEN\n{featName}"
-    if subtitle: title = f"{title}\n({subtitle})"
+    # adjust label if n output is less than n limit
+    n = n if (le := _df.shape[ 0 ]) >= n else le
+    
+    title = f"{'BOTTOM' if asc else 'TOP'} {n}\n{featName}"
+    if sub: title = f"{title}\n({sub})"
     if unit: title = f"{title}\n[{unit}]"
     
     ax.set_title( title, fontsize=16, ha="right", weight="demi", x=0.98,
@@ -401,7 +402,6 @@ def showTopTen( featName, _df, asc = False, subtitle = None, unit = None ):
         tick.label.set_color( 'black' )
     
     plt.xticks( rotation=45, ha='right' )
-    
     plt.show()
 
 
@@ -417,11 +417,26 @@ def getRank( _df, ctry, feature ):
 
 def dfPrint( _df ):
     # options at https://pandas.pydata.org/docs/user_guide/options.html
-    with pd.option_context('display.max_rows', None, 'display.max_columns',
-        None): print( _df )
- 
+    with pd.option_context( 'display.max_rows', None, 'display.max_columns',
+        None ): print( _df )
 
-def getDF_ZThresh( _df, _ft, zThresh, dfOrig, _ctrDct, excl=False, asc=False ):
+
+def sDevOutliers( _ft, _df, sdThresh = 3 ):
+    """ simple s-Dev outlier identification
+    eg: ftOut, ftFilt = dataUtls.sDevOutliers(
+            'Geography: Area - total', dfN, sdThresh=2.5 ) """
+    data = np.asarray( _df[ _ft ].dropna() )
+    d_mean, d_sDev = np.mean( data, dtype=f64 ), np.std( data, dtype=f64 )
+    lower, upper = d_mean - (limit := d_sDev * sdThresh), d_mean + limit
+    outs = [ x for x in data if x < lower or x > upper ]
+    filt = [ x for x in data if lower <= x <= upper ]
+    print( f"ftSize={len( data )}\n{d_mean=}\n{d_sDev=}\n{limit=}\n{lower=}\n"
+           f"{upper=}\nlen(outs)={len( outs )}\nlen(filt)={len( filt )}" )
+    return sorted( outs, reverse=True ), filt
+
+
+def getDF_ZThresh( _df, _ft, zThresh, dfOrig, _ctrDct, excl = False,
+    asc = False, ret = False ):
     # get country and value for non-nan values of selected feature
     vLi = [ [ c, v ] for c, v in zip( _df[ 'Country' ].values.tolist(),
         _df[ _ft ].values.tolist() ) if np.isfinite( v ) ]
@@ -433,22 +448,22 @@ def getDF_ZThresh( _df, _ft, zThresh, dfOrig, _ctrDct, excl=False, asc=False ):
     
     # get original string value from raw-loaded dataset
     dfO = pd.DataFrame( dfOrig.loc[ dfOrig[ 'Country' ] == _ctrDct[ c ],
-        _ft ].iloc[ 0 ] for c, n in vLi )
+    _ft ].iloc[ 0 ] for c, n in vLi )
     
     # concat as df and limit to outside +- zScore threshold
     dfCZ = pd.concat( [ dfCi, dfCn, dfZ, dfN, dfO ], axis=1 )
     dfCZ.columns = [ 'CTRY_i', 'CTRY_n', 'Z_VAL', 'E_VAL', 'O_STR' ]
     
     # if excl ("exclude"), return df within threshold instead out outliers
-    dfL = ( dfCZ.loc[ ((dfCZ.Z_VAL >= zThresh) | (dfCZ.Z_VAL <= -zThresh)) ]
-        if not excl else
-        dfCZ.loc[ ((dfCZ.Z_VAL <= zThresh) & (dfCZ.Z_VAL >= -zThresh)) ] )
+    dfL = (dfCZ.loc[ ((dfCZ.Z_VAL >= zThresh) | (dfCZ.Z_VAL <= -zThresh)) ]
+           if not excl else
+           dfCZ.loc[ ((dfCZ.Z_VAL <= zThresh) & (dfCZ.Z_VAL >= -zThresh)) ])
     
-    dfSort = dfL.sort_values('Z_VAL', ascending=asc)
+    dfSort = dfL.sort_values( 'Z_VAL', ascending=asc )
     inc = 'OUTSIDE' if not excl else 'INSIDE'
     print( f"Z_SCORES {inc} >+/<-[ {zThresh} ] for non-NaN vals in:\n{_ft}" )
-    display(dfSort)  # dfPrint( dfSort )
-    # return dfSort
+    display( dfSort )  # dfPrint( dfSort )
+    if ret: return dfSort
 
 
 def getVal( _df, _ctry, _feat ):
@@ -470,7 +485,7 @@ def getCorDct( _df ):
         
         baseCol += 1
         if baseCol == _df.shape[ 1 ]:
-            print( f"Compiled {len(correlDict)} correlations" )
+            print( f"Compiled {len( correlDict )} correlations" )
             return correlDict
 
 
@@ -510,7 +525,7 @@ def cycleT10( _df, start = 0, showN = 1, asc = False ):
     # iterate feats through T10 analysis (progress)
     print( f"FEAT {start}-{start + showN} of {len( _df.columns )}" )
     for i in list( _df.columns )[ start:start + showN ]:
-        showTopTen( i, _df, asc )
+        showMaxima( i, _df, asc )
         start += showN
 
 
