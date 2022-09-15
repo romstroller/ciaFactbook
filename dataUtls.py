@@ -6,7 +6,6 @@ import os
 # data explore / manip
 from collections import Counter
 from scipy.stats import zscore
-import seaborn as sns
 import pandas as pd
 import numpy as np
 import scipy
@@ -14,8 +13,12 @@ import math
 import re
 
 # visualization / notebook graphics
+from numpy.polynomial.polynomial import polyfit
 from IPython.display import display, HTML
 import matplotlib.pyplot as plt
+import seaborn as sns
+
+print( "Initialized ancilliary: datUtls" )
 
 pd.set_option( 'display.float_format', lambda x: '%.3f' % x )
 
@@ -297,12 +300,22 @@ def flattenScale( _df, dfDct, scaleNotes, dffBook, dropFeats ):
     cleanCtry = list( _df[ 'Country' ] )
     scaleKeys = [ dkey for dkey in scaleNotes if dkey not in dropFeats ]
     
+    # erPos = 1
+    
+    # print( f"{len(scaleKeys)=}" )
+    
     for colName in scaleKeys:
+        # print( f"{colName=}" )
+        
         colVals = [ ]
         row = 0
         
+        # print( f"{len(dct[ colName ][ 'remainder' ])=}" )
+        
         # checking remnantcol (HAS PRE-CLEAN ENTRIES) for match
         for remnt in dct[ colName ][ 'remainder' ]:
+            # print( f"{row}{remnt=}" )
+            
             country = dffBook[ 'Country' ][ row ]
             if country not in cleanCtry:
                 row += 1
@@ -326,7 +339,8 @@ def flattenScale( _df, dfDct, scaleNotes, dffBook, dropFeats ):
             row += 1
         
         _df[ colName ] = colVals
-        return _df, cleanCtry
+    
+    return _df, cleanCtry
 
 
 def popRows_byFtVal( _df, ftNam, vals ):
@@ -380,7 +394,8 @@ def showMaxima( featName, _df, n = 10, asc = False, sub = None, unit = None ):
         ascending=asc )[ :n ]
     
     fig = plt.figure( facecolor="silver" )
-    ax = fig.add_axes( [ 0, 0, 1.2, 1.2 ] )
+    
+    ax = fig.add_axes( [ 0, 0, 1.6, 1.2 ] )
     ax.bar( df10.iloc[ :, 0 ], df10.iloc[ :, 1 ] )
     
     # adjust label if n output is less than n limit
@@ -394,10 +409,8 @@ def showMaxima( featName, _df, n = 10, asc = False, sub = None, unit = None ):
         color="black" )
     
     ax.ticklabel_format( axis='y', useOffset=False, style='plain' )
-    for tick in ax.yaxis.get_major_ticks():
-        tick.label.set_fontsize( 14 )
-        tick.label.set_color( 'black' )
-    for tick in ax.xaxis.get_major_ticks():
+    
+    for tick in ax.yaxis.get_major_ticks() + ax.xaxis.get_major_ticks():
         tick.label.set_fontsize( 14 )
         tick.label.set_color( 'black' )
     
@@ -416,9 +429,10 @@ def getRank( _df, ctry, feature ):
 
 
 def dfPrint( _df ):
-    # options at https://pandas.pydata.org/docs/user_guide/options.html
-    with pd.option_context( 'display.max_rows', None, 'display.max_columns',
-        None ): print( _df )
+    # # options at https://pandas.pydata.org/docs/user_guide/options.html
+    # with pd.option_context( 'display.max_rows', None, 'display.max_columns',
+    #     None ): print( _df )
+    display( _df )
 
 
 def sDevOutliers( _ft, _df, sdThresh = 3 ):
@@ -454,16 +468,18 @@ def getDF_ZThresh( _df, _ft, zThresh, dfOrig, _ctrDct, excl = False,
     dfCZ = pd.concat( [ dfCi, dfCn, dfZ, dfN, dfO ], axis=1 )
     dfCZ.columns = [ 'CTRY_i', 'CTRY_n', 'Z_VAL', 'E_VAL', 'O_STR' ]
     
-    # if excl ("exclude"), return df within threshold instead out outliers
+    # if excl ("exclude"), filter df within threshold instead out outliers
     dfL = (dfCZ.loc[ ((dfCZ.Z_VAL >= zThresh) | (dfCZ.Z_VAL <= -zThresh)) ]
            if not excl else
            dfCZ.loc[ ((dfCZ.Z_VAL <= zThresh) & (dfCZ.Z_VAL >= -zThresh)) ])
     
     dfSort = dfL.sort_values( 'Z_VAL', ascending=asc )
-    inc = 'OUTSIDE' if not excl else 'INSIDE'
-    print( f"Z_SCORES {inc} >+/<-[ {zThresh} ] for non-NaN vals in:\n{_ft}" )
-    display( dfSort )  # dfPrint( dfSort )
+    
     if ret: return dfSort
+    else:
+        inc = 'OUTSIDE' if not excl else 'INSIDE'
+        print( f"Z_SCORES {inc} >+/<-[ {zThresh} ] for non-NaNs in:\n{_ft}" )
+        display( dfSort )  # dfPrint( dfSort )
 
 
 def getVal( _df, _ctry, _feat ):
@@ -516,8 +532,17 @@ def repCorrel( _df, correlDict, fts ):
 
 
 def plotScttr( _df, fts ):
+    x, y = _df[ fts[ 0 ] ], _df[ fts[ 1 ] ]
+    # b, m = polyfit(
+    #     [ x for x in _df[ fts[ 0 ] ].values.tolist() if np.isfinite( x ) ],
+    #     [ y for y in _df[ fts[ 1 ] ].values.tolist() if np.isfinite( y ) ],
+    #     1 )
+    plt.figure( figsize=(16, 9), facecolor="silver" )
+    plt.plot( x, y, 'o', color='black' )
+    # plt.plot( x, b + m * x, '-' )  # add
+    plt.xlabel( fts[ 0 ] )
+    plt.ylabel( fts[ 1 ] )
     print( f"Feats: [ {fts[ 0 ]} ]\n       [ {fts[ 1 ]} ]" )
-    plt.plot( _df[ fts[ 0 ] ], _df[ fts[ 1 ] ], 'o', color='black' )
     plt.show()
 
 
