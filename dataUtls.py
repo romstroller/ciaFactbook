@@ -13,12 +13,15 @@ import math
 import re
 
 # visualization / notebook graphics
+from mpl_toolkits.axes_grid1.inset_locator import zoomed_inset_axes  # , mark_inset
 from numpy.polynomial.polynomial import polyfit
+
+
 from IPython.display import display, HTML
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-print( "Initialized ancilliary: datUtls" )
+print( "Initialized ancilliary module: datUtls" )
 
 pd.set_option( 'display.float_format', lambda x: '%.3f' % x )
 
@@ -356,11 +359,10 @@ def popRows_byFtVal( _df, ftNam, vals ):
 
 
 def numCtry( _df ):
-    ctrDct = { i: c for i, c in enumerate( _df[ 'Country' ].tolist() ) }
-    ctrDct_R = { c: i for i, c in ctrDct.items() }
-    _df[ 'Country' ] = _df[ 'Country' ].replace( ctrDct_R )
-    dfNu = _df.apply( pd.to_numeric )
-    return dfNu, ctrDct, ctrDct_R
+    bd = biDict( { i: c for i, c in enumerate( _df[ 'Country' ].tolist() ) } )
+    _df[ 'Country' ] = _df[ 'Country' ].replace( bd.i )
+    _df = _df.apply( pd.to_numeric )
+    return _df, bd
 
 
 def showPDens( _df, _ft ):
@@ -466,14 +468,14 @@ def getDF_ZThresh( _df, _ft, zThresh, dfOrig, _ctrDct, excl = False,
     
     # concat as df and limit to outside +- zScore threshold
     dfCZ = pd.concat( [ dfCi, dfCn, dfZ, dfN, dfO ], axis=1 )
-    dfCZ.columns = [ 'CTRY_i', 'CTRY_n', 'Z_VAL', 'E_VAL', 'O_STR' ]
+    dfCZ.columns = [ 'CTRY_i', 'CTRY_s', 'Z_SCR', 'VALUE', 'OR_STR' ]
     
     # if excl ("exclude"), filter df within threshold instead out outliers
-    dfL = (dfCZ.loc[ ((dfCZ.Z_VAL >= zThresh) | (dfCZ.Z_VAL <= -zThresh)) ]
+    dfL = (dfCZ.loc[ ((dfCZ.Z_SCR >= zThresh) | (dfCZ.Z_SCR <= -zThresh)) ]
            if not excl else
-           dfCZ.loc[ ((dfCZ.Z_VAL <= zThresh) & (dfCZ.Z_VAL >= -zThresh)) ])
+           dfCZ.loc[ ((dfCZ.Z_SCR <= zThresh) & (dfCZ.Z_SCR >= -zThresh)) ])
     
-    dfSort = dfL.sort_values( 'Z_VAL', ascending=asc )
+    dfSort = dfL.sort_values( 'Z_SCR', ascending=asc )
     
     if ret: return dfSort
     else:
@@ -486,9 +488,16 @@ def getVal( _df, _ctry, _feat ):
     return _df.loc[ _df[ 'Country' ] == _ctry, _feat ].iloc[ 0 ]
 
 
+def searchFeatures( match, _df): return [ c for c in _df.columns if match in c ]
+
+
+def fSetFromFeatures( _df, ft1, ft2 ):
+    return frozenset( [ list(_df.columns).index(c) for c in [ ft1, ft2 ] ] )
+
+
 def getCorDct( _df ):
     """ Generate CORRELATION DICTIONARY where keys are feature pairs,
-        frozensets as keys for reversible feat lookup
+        (pairs as frozensets for reversible feat lookup)
         values are correlations. """
     fset = frozenset
     correlDict = { }
@@ -531,18 +540,22 @@ def repCorrel( _df, correlDict, fts ):
     return f" LIN. CORR: {correlDict[ frozenset( [ bCol, cPos ] ) ]}"
 
 
-def plotScttr( _df, fts ):
+def plotScttr( _df, fts ):  # , pfit= False
     x, y = _df[ fts[ 0 ] ], _df[ fts[ 1 ] ]
-    # b, m = polyfit(
-    #     [ x for x in _df[ fts[ 0 ] ].values.tolist() if np.isfinite( x ) ],
-    #     [ y for y in _df[ fts[ 1 ] ].values.tolist() if np.isfinite( y ) ],
-    #     1 )
     plt.figure( figsize=(16, 9), facecolor="silver" )
     plt.plot( x, y, 'o', color='black' )
-    # plt.plot( x, b + m * x, '-' )  # add
+    
+    # if pfit:
+    #     b, m = polyfit(
+    #         [ x for x in _df[ fts[ 0 ] ].values.tolist() if np.isfinite( x ) ],
+    #         [ y for y in _df[ fts[ 1 ] ].values.tolist() if np.isfinite( y ) ],
+    #         1 )
+    #     plt.plot( x, b + m * x, '-' )  # add
+    
     plt.xlabel( fts[ 0 ] )
     plt.ylabel( fts[ 1 ] )
     print( f"Feats: [ {fts[ 0 ]} ]\n       [ {fts[ 1 ]} ]" )
+    
     plt.show()
 
 
@@ -576,7 +589,8 @@ def showDiffsFilled( tDict, _df ):
         else: difDct.update( { k: dfCompare } )
     if len( difDct ) < 1: print( "\nREPORTING NON-NAN DIFFERENCES CORR. FEATS" )
     for k in difDct:
-        difDf = pd.concat( [ _df[ 'Country' ], difDct[ k ] ], axis=1 ).dropna()
+        # difDf = pd.concat( [ _df[ 'Country' ], difDct[ k ] ], axis=1 ).dropna()
+        difDf = difDct[ k ].dropna()
         print( f"{getThreshReport( tDict, k )}" )
         print( f"{len( difDf )} Non-NaN diffs for {list( k )}. First 3:" )
         display( HTML( difDf[ :3 ].to_html() ) )
@@ -598,6 +612,28 @@ def getThreshReport( tDct, _key ):
         f"\nCORR: {corr}"
         f"\nBASE: {baseName}"
         f"\nCOMP: {compName}")
+
+
+class biDict(dict):
+    """cred: stackoverflow.com/users/1422096/basj"""
+    def __init__(self, *args, **kwargs):
+        super(biDict, self).__init__(*args, **kwargs)
+        self.inverse = self.i = {}  # added shorter ref
+        for key, value in self.items():
+            self.inverse.setdefault(value, []).append(key)
+    
+    def __setitem__(self, key, value):
+        if key in self:
+            self.inverse[self[key]].remove(key)
+        super(biDict, self).__setitem__(key, value)
+        self.inverse.setdefault(value, []).append(key)
+    
+    def __delitem__(self, key):
+        self.inverse.setdefault(self[key], []).remove(key)
+        if self[key] in self.inverse and not self.inverse[self[key]]:
+            del self.inverse[self[key]]
+        super(biDict, self).__delitem__(key)
+
 
 # END_INCLUDE
 
