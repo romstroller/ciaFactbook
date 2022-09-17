@@ -4,6 +4,7 @@ import pickle
 import os
 
 # data explore / manip
+from difflib import SequenceMatcher
 from collections import Counter
 from scipy.stats import zscore
 import pandas as pd
@@ -13,9 +14,9 @@ import math
 import re
 
 # visualization / notebook graphics
-from mpl_toolkits.axes_grid1.inset_locator import zoomed_inset_axes  # , mark_inset
-from numpy.polynomial.polynomial import polyfit
 
+# from mpl_toolkits.axes_grid1.inset_locator import zoomed_inset_axes  # , mark_inset
+# from numpy.polynomial.polynomial import polyfit
 
 from IPython.display import display, HTML
 import matplotlib.pyplot as plt
@@ -98,13 +99,12 @@ def getMatchRemain( df_in, coIdex, patrn ):
 
 def generateMatchDct( dffBook ):
     dfFbDict = { }  # collect column data
-    
     colDex = 1
     for colName in dffBook.columns[ colDex: ]:
         origCol = dffBook.iloc[ :, colDex ]
         colType = dffBook[ colName ].dtype
         
-        # get match if string, store if already float, catch unexpected
+        # get match & unit if string, store if already float, catch unexpected
         if colType == float:
             colDict = { 'matchedNums': origCol, 'remainder': [ ] }
         elif colType == np.float64:
@@ -118,6 +118,26 @@ def generateMatchDct( dffBook ):
         colDex += 1
     
     return dfFbDict
+
+
+def generateUnitDct( fts, _df ):
+    print( "Getting unit dct" )
+    
+    untDct = { }
+    colDex = 0
+    
+    for ft in fts[ colDex: ]:
+        print( f"getting units for:\n{ft}" )
+        
+        colType = _df[ ft ].dtype
+        if colType in (float, np.float64): untDct.update( { ft: None } )
+        else: untDct.update( { ft: matchUnits( _df, ft ) } )
+        
+        colDex += 1
+    
+    print( " COMPLETED get unit dct" )
+    
+    return untDct
 
 
 def sortMatches( matchList ):
@@ -138,6 +158,32 @@ def sortMatches( matchList ):
             firstVals.append( np.nan )
             splitVals.append( np.nan )
     return firstVals, splitVals, checkVals
+
+
+def matchUnits( _df, _ft ):
+    """returns ten most common substrings between values of df column"""
+    
+    def matchSeg( s1, s2 ):
+        return (SequenceMatcher( None, s1, s2 ).find_longest_match()
+                if (float not in (types := [ type( s1 ), type( s2 ) ]))
+                else None)
+        # & (np.float64 not in types) else None)
+    
+    units = [ ]
+    for xRow in range( 1, _df.shape[ 0 ] ):
+        for yRow in range( xRow + 1, _df.shape[ 0 ] ):
+            if m := matchSeg(
+                sX := _df.loc[ xRow, _ft ], sY := _df.loc[ yRow, _ft ] ):
+                units += [ sX[ m.b:m.b + m.size ], sY[ m.b:m.b + m.size ] ]
+    
+    if len( c := list( Counter( units ).most_common() ) ) > 0: return c
+    else: return None
+
+
+# def generateUnits( dct, _df ):
+#     for ft in _df.columns:
+#         if ft != 'Country': dct[ ft ].update(
+#             { 'UnitMatches': matchUnits( _df, ft ) } )
 
 
 def isolateClean( _dfFbDict ):
@@ -273,19 +319,6 @@ def runScaleAnalysis( dfr, remDict ):
         osKit.storePKL( obj, f'{fName( obj )}_{osKit.dtStamp()}', os.getcwd() )
 
 
-def loadSDdata():
-    pklFiles = [ fi for fi in
-        [ open( pth, 'rb' ) for pth in
-            [ list( dKey )[ 0 ] for dKey in
-                [ osKit.datesortFiles( os.getcwd(), fNam ) for fNam in
-                    [ 'dropFeatrs', 'cleanNotes' ] ] ] ] ]
-    
-    dFeats, sNotes = [ pickle.load( fi ) for fi in pklFiles ]
-    for fi in pklFiles: fi.close()
-    
-    return dFeats, sNotes
-
-
 def omitDropped( _df, dropFeats ):
     # apply drop to flagged features
     dfDropped = _df.copy()
@@ -303,30 +336,20 @@ def flattenScale( _df, dfDct, scaleNotes, dffBook, dropFeats ):
     cleanCtry = list( _df[ 'Country' ] )
     scaleKeys = [ dkey for dkey in scaleNotes if dkey not in dropFeats ]
     
-    # erPos = 1
-    
-    # print( f"{len(scaleKeys)=}" )
-    
     for colName in scaleKeys:
-        # print( f"{colName=}" )
         
         colVals = [ ]
         row = 0
         
-        # print( f"{len(dct[ colName ][ 'remainder' ])=}" )
-        
         # checking remnantcol (HAS PRE-CLEAN ENTRIES) for match
         for remnt in dct[ colName ][ 'remainder' ]:
-            # print( f"{row}{remnt=}" )
-            
             country = dffBook[ 'Country' ][ row ]
-            if country not in cleanCtry:
-                row += 1
-                continue
+            row += 1
+            
+            if country not in cleanCtry: continue
             val = _df.loc[ _df[ 'Country' ] == country ][ colName ].iloc[ 0 ]
             if type( remnt ) == float:
                 colVals.append( val )
-                row += 1
                 continue
             if remnt.startswith( "-$" ): val = 0 - val
             
@@ -339,7 +362,6 @@ def flattenScale( _df, dfDct, scaleNotes, dffBook, dropFeats ):
                 val = val * scaleDict[ matchScale ]
             
             colVals.append( val )
-            row += 1
         
         _df[ colName ] = colVals
     
@@ -468,14 +490,14 @@ def getDF_ZThresh( _df, _ft, zThresh, dfOrig, _ctrDct, excl = False,
     
     # concat as df and limit to outside +- zScore threshold
     dfCZ = pd.concat( [ dfCi, dfCn, dfZ, dfN, dfO ], axis=1 )
-    dfCZ.columns = [ 'CTRY_i', 'CTRY_s', 'Z_SCR', 'VALUE', 'OR_STR' ]
+    dfCZ.columns = [ 'ctry_i', 'ctry_s', 'zScore', 'value', 'orVal' ]
     
     # if excl ("exclude"), filter df within threshold instead out outliers
-    dfL = (dfCZ.loc[ ((dfCZ.Z_SCR >= zThresh) | (dfCZ.Z_SCR <= -zThresh)) ]
+    dfL = (dfCZ.loc[ ((dfCZ.zScore >= zThresh) | (dfCZ.zScore <= -zThresh)) ]
            if not excl else
-           dfCZ.loc[ ((dfCZ.Z_SCR <= zThresh) & (dfCZ.Z_SCR >= -zThresh)) ])
+           dfCZ.loc[ ((dfCZ.zScore <= zThresh) & (dfCZ.zScore >= -zThresh)) ])
     
-    dfSort = dfL.sort_values( 'Z_SCR', ascending=asc )
+    dfSort = dfL.sort_values( 'zScore', ascending=asc )
     
     if ret: return dfSort
     else:
@@ -488,11 +510,11 @@ def getVal( _df, _ctry, _feat ):
     return _df.loc[ _df[ 'Country' ] == _ctry, _feat ].iloc[ 0 ]
 
 
-def searchFeatures( match, _df): return [ c for c in _df.columns if match in c ]
+def searchFeatures( seg, _df ): return [ c for c in _df.columns if seg in c ]
 
 
 def fSetFromFeatures( _df, ft1, ft2 ):
-    return frozenset( [ list(_df.columns).index(c) for c in [ ft1, ft2 ] ] )
+    return frozenset( [ list( _df.columns ).index( c ) for c in [ ft1, ft2 ] ] )
 
 
 def getCorDct( _df ):
@@ -540,21 +562,21 @@ def repCorrel( _df, correlDict, fts ):
     return f" LIN. CORR: {correlDict[ frozenset( [ bCol, cPos ] ) ]}"
 
 
-def plotScttr( _df, fts ):  # , pfit= False
-    x, y = _df[ fts[ 0 ] ], _df[ fts[ 1 ] ]
-    plt.figure( figsize=(16, 9), facecolor="silver" )
-    plt.plot( x, y, 'o', color='black' )
+def plotScttr( _df, fts, fts2 = None ):
+    if fts2:
+        fig, (ax1, ax2) = plt.subplots( 1, 2 )  # sharey='all'
+        ax1.scatter( _df[ fts[ 0 ] ], _df[ fts[ 1 ] ], c='black' )
+        ax2.scatter( _df[ fts2[ 0 ] ], _df[ fts2[ 1 ] ], c='black' )
+        for side, g in zip( [ 'LEFT', 'RIGHT' ], [ fts, fts2 ] ):
+            for f, ax in zip( g, [ 'X', 'Y' ] ): print( f"{side} {ax}: {f}" )
     
-    # if pfit:
-    #     b, m = polyfit(
-    #         [ x for x in _df[ fts[ 0 ] ].values.tolist() if np.isfinite( x ) ],
-    #         [ y for y in _df[ fts[ 1 ] ].values.tolist() if np.isfinite( y ) ],
-    #         1 )
-    #     plt.plot( x, b + m * x, '-' )  # add
-    
-    plt.xlabel( fts[ 0 ] )
-    plt.ylabel( fts[ 1 ] )
-    print( f"Feats: [ {fts[ 0 ]} ]\n       [ {fts[ 1 ]} ]" )
+    else:
+        x, y = _df[ fts[ 0 ] ], _df[ fts[ 1 ] ]
+        plt.figure( figsize=(16, 9), facecolor="silver" )
+        plt.plot( x, y, 'o', color='black' )
+        plt.xlabel( fts[ 0 ] )
+        plt.ylabel( fts[ 1 ] )
+        print( f"Feats: [ {fts[ 0 ]} ]\n       [ {fts[ 1 ]} ]" )
     
     plt.show()
 
@@ -565,16 +587,6 @@ def cycleT10( _df, start = 0, showN = 1, asc = False ):
     for i in list( _df.columns )[ start:start + showN ]:
         showMaxima( i, _df, asc )
         start += showN
-
-
-# def plotScttrDbl( _df, fts, fts2 ):
-#     for ft in [ fts, fts2 ]: print( f"Fts: [ {ft[ 0 ]} ]\n     [ {ft[ 1 ]} ]" )
-#     fig, (ax1, ax2) = plt.subplots( 1, 2, sharey='all' )  # 1 row, 2 col
-#     ax1.scatter( _df[ fts[ 0 ] ], _df[ fts[ 1 ] ], c='blue' )
-#     ax2.scatter( _df[ fts2[ 0 ] ], _df[ fts2[ 1 ] ], c='red' )
-#     ax1.set_xlabel( fts[ 1 ] )
-#     ax2.set_xlabel( fts2[ 1 ] )
-#     plt.show()
 
 
 def showDiffsFilled( tDict, _df ):
@@ -614,26 +626,26 @@ def getThreshReport( tDct, _key ):
         f"\nCOMP: {compName}")
 
 
-class biDict(dict):
+class biDict( dict ):
     """cred: stackoverflow.com/users/1422096/basj"""
-    def __init__(self, *args, **kwargs):
-        super(biDict, self).__init__(*args, **kwargs)
-        self.inverse = self.i = {}  # added shorter ref
+    
+    def __init__( self, *args, **kwargs ):
+        super( biDict, self ).__init__( *args, **kwargs )
+        self.inverse = self.i = { }  # added shorter ref
         for key, value in self.items():
-            self.inverse.setdefault(value, []).append(key)
+            self.inverse.setdefault( value, [ ] ).append( key )
     
-    def __setitem__(self, key, value):
+    def __setitem__( self, key, value ):
         if key in self:
-            self.inverse[self[key]].remove(key)
-        super(biDict, self).__setitem__(key, value)
-        self.inverse.setdefault(value, []).append(key)
+            self.inverse[ self[ key ] ].remove( key )
+        super( biDict, self ).__setitem__( key, value )
+        self.inverse.setdefault( value, [ ] ).append( key )
     
-    def __delitem__(self, key):
-        self.inverse.setdefault(self[key], []).remove(key)
-        if self[key] in self.inverse and not self.inverse[self[key]]:
-            del self.inverse[self[key]]
-        super(biDict, self).__delitem__(key)
-
+    def __delitem__( self, key ):
+        self.inverse.setdefault( self[ key ], [ ] ).remove( key )
+        if self[ key ] in self.inverse and not self.inverse[ self[ key ] ]:
+            del self.inverse[ self[ key ] ]
+        super( biDict, self ).__delitem__( key )
 
 # END_INCLUDE
 
