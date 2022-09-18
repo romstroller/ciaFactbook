@@ -1,7 +1,7 @@
 # os ops
-from osOps import OsKit  # see github.com/romstroller/FileTools
-import pickle
-import os
+import osOps  # see github.com/romstroller/FileTools
+
+import importlib
 
 # data explore / manip
 from difflib import SequenceMatcher
@@ -12,22 +12,27 @@ import numpy as np
 import scipy
 import math
 import re
+import os
 
 # visualization / notebook graphics
-
 # from mpl_toolkits.axes_grid1.inset_locator import zoomed_inset_axes  # , mark_inset
 # from numpy.polynomial.polynomial import polyfit
-
 from IPython.display import display, HTML
 import matplotlib.pyplot as plt
 import seaborn as sns
 
 print( "Initialized ancilliary module: datUtls" )
 
+importlib.reload(osOps)
+
 pd.set_option( 'display.float_format', lambda x: '%.3f' % x )
 
-osKit = OsKit()
+osKit = osOps.OsKit()
 f64 = np.float64
+
+getKaggleSet = osKit.getKaggleSet
+unPklData = osKit.unPklData
+storePKL = osKit.storePKL
 
 # REGEX:
 #   capture group             (
@@ -165,9 +170,7 @@ def matchUnits( _df, _ft ):
     
     def matchSeg( s1, s2 ):
         return (SequenceMatcher( None, s1, s2 ).find_longest_match()
-                if (float not in (types := [ type( s1 ), type( s2 ) ]))
-                else None)
-        # & (np.float64 not in types) else None)
+                if (float not in [ type( s1 ), type( s2 ) ]) else None)
     
     units = [ ]
     for xRow in range( 1, _df.shape[ 0 ] ):
@@ -337,7 +340,6 @@ def flattenScale( _df, dfDct, scaleNotes, dffBook, dropFeats ):
     scaleKeys = [ dkey for dkey in scaleNotes if dkey not in dropFeats ]
     
     for colName in scaleKeys:
-        
         colVals = [ ]
         row = 0
         
@@ -345,14 +347,14 @@ def flattenScale( _df, dfDct, scaleNotes, dffBook, dropFeats ):
         for remnt in dct[ colName ][ 'remainder' ]:
             country = dffBook[ 'Country' ][ row ]
             row += 1
-            
+
             if country not in cleanCtry: continue
             val = _df.loc[ _df[ 'Country' ] == country ][ colName ].iloc[ 0 ]
             if type( remnt ) == float:
                 colVals.append( val )
                 continue
             if remnt.startswith( "-$" ): val = 0 - val
-            
+
             matches = [ ]
             for scale in scaleDict:  # apply lowest-index matched scale
                 try: matches.append( [ remnt.index( scale ), scale ] )
@@ -360,11 +362,11 @@ def flattenScale( _df, dfDct, scaleNotes, dffBook, dropFeats ):
             if len( matches ) > 0:  # sort by lowest index (first val of match)
                 matchScale = sorted( matches, key=lambda x: x[ 0 ] )[ 0 ][ 1 ]
                 val = val * scaleDict[ matchScale ]
-            
+
             colVals.append( val )
-        
+
         _df[ colName ] = colVals
-    
+
     return _df, cleanCtry
 
 
