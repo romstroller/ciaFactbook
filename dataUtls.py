@@ -498,21 +498,32 @@ class dUtls:
             self.dat.corDct.pop( i )
     
     def showMaxima( self, ft, n = 10, asc = False, sub = None, unit = None,
-        df = None ):
+        df = None, mask = None, short = False ):
+        # check non-default DF or df mask
         if not df: df = self.dat.DF
+        try: df = df[ mask ] if mask.any() else df
+        except AttributeError: pass
+        
         df10 = pd.concat( [ df[ 'Country' ],
             pd.Series( df[ ft ] ) ], axis=1 ).sort_values( by=[ ft ],
             ascending=asc )[ :n ]
         
         fig = plt.figure( facecolor="silver" )
-        ax = fig.add_axes( [ 0, 0, 1.6, 1.2 ] )
+        height = 3.0 if short else 1.6
+        ax = fig.add_axes( [ 0, 0, height, 1.2 ] )
         ax.bar( df10.iloc[ :, 0 ], df10.iloc[ :, 1 ] )
         
         n = n if (le := df.shape[ 0 ]) >= n else le  # if small df
         title = f"{'BOTTOM' if asc else 'TOP'} {n}\n{ft}"  # adjust label
         if sub: title = f"{title}\n({sub})"
+        
         # unit: default add from dict
-        title = f"{title}\n[{self.dat.untDct[ ft ] if not unit else unit}]"
+        if not unit:
+            try: unit = self.dat.untDct[ ft ]
+            except KeyError: unit = "SET UNIT"
+        if unit == "_": unit = None
+        
+        title = f"{title}\n{unit}" if unit else title
         
         ax.set_title( title, fontsize=16, ha="right", weight="demi", x=0.98,
             color="black" )
@@ -550,7 +561,8 @@ class dUtls:
         if str( value ) == 'nan': return print( f"{ctry} is null for\n{ft}" )
         rank = len( [ v for v in pd.Series( df[ ft ] ) if v < value ] )
         ties = len( [ v for v in pd.Series( df[ ft ] ) if v == value ] ) - 1
-        print( f"With value of [ {value} ], {ctry} is {rank}th-highest for:\n"
+        
+        print( f"With value of [ {value} ], {ctry} is ranked {rank} for:\n"
                f"'{ft}'\n(out of total {df.shape[ 0 ]} ranked)" )
         if ties > 0: print( f"TIED WITH {ties} COUNTRIES" )
     
