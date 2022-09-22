@@ -48,7 +48,7 @@ class dUtls:
         self.dat.OR = self.osKit.getKaggleSet( owner, setName )
         # return self.dat.OR
     
-    def tPrint( self, msg ): print( f"[{self.osKit.dtStamp()}] {msg}" )
+    def tPrint( self, msg ): print( f"- [{self.osKit.dtStamp()}] {msg}" )
     
     def typeCount( self, df = None ):
         if sum( df.any() ) < 1:
@@ -204,10 +204,10 @@ class dUtls:
         preDim = dfPre.shape[ 0 ] * dfPre.shape[ 1 ]
         posDim = dfPost.shape[ 0 ] * dfPost.shape[ 1 ]
         print(
-            f"BEFORE shape: {dfPre.shape}, "
+            f"    BEFORE shape: {dfPre.shape}, "
             f"NAN-density: {(preIsNa / preDim) * 100:.2f}% "
             f"({preIsNa} NaN in {preDim} values)\n"
-            f"AFTER shape: {dfPost.shape}, "
+            f"    AFTER shape: {dfPost.shape}, "
             f"NAN-density: {(posIsNa / posDim) * 100:.2f}% "
             f"({posIsNa} NaN in {posDim} values)\n" )
     
@@ -491,10 +491,11 @@ class dUtls:
     
     def dropDupCorrs( self ):
         # Check perfect correlations. Confirmed duplicates, drop
-        print( 'Dropping duplicate features' )
-        for i in (perfC := self.getCTDct( 1 )):
-            print( f"{perfC[i]['corr']=}:\n{perfC[i]['baseName']=}"
-                   f"\n{perfC[i]['compName']=}\n" )
+        self.tPrint( 'Dropping duplicate features' )
+        for i in (cDct := self.getCTDct( 1 )):
+            corr = cDct[ i ][ 'corr' ]
+            ftrX, ftrY = cDct[ i ][ 'baseName' ], cDct[ i ][ 'compName' ]
+            print( f"    {corr=}\n    {ftrX=}\n    {ftrY=}\n" )
             self.dat.corDct.pop( i )
     
     def showMaxima( self, ft, n = 10, asc = False, sub = None, unit = None,
@@ -563,8 +564,8 @@ class dUtls:
         ties = len( [ v for v in pd.Series( df[ ft ] ) if v == value ] ) - 1
         
         print( f"With value of [ {value} ], {ctry} is ranked {rank} for:\n"
-               f"'{ft}'\n(out of total {df.shape[ 0 ]} ranked)" )
-        if ties > 0: print( f"TIED WITH {ties} COUNTRIES" )
+               f"    '{ft}'\n    (out of total {df.shape[ 0 ]} ranked)" )
+        if ties > 0: print( f"    TIED WITH {ties} COUNTRIES" )
     
     def dfPrint( self, _df = None ):
         if not _df: _df = self.dat.DF
@@ -601,7 +602,7 @@ class dUtls:
     
     def reportCorr( self, cfts ):
         bCol, cPos = [ list( self.dat.DF.columns ).index( ft ) for ft in cfts ]
-        return f" LIN. CORR: {self.dat.corDct[ frozenset( [ bCol, cPos ] ) ]}"
+        return f"LIN. CORR: {self.dat.corDct[ frozenset( [ bCol, cPos ] ) ]}"
     
     def cycleT10( self, _df, start = 0, showN = 1, asc = False ):
         # iterate feats through T10 analysis (progress)
@@ -630,7 +631,7 @@ class dUtls:
                 ~(self.dat.DF[ bCol ] == self.dat.DF[ cCol ]) ]
             if len( dfCompare.dropna() ) < 1:
                 print( f"{report( tDict, k )}" )
-                print( f"\n{list( k )}: DIFFERENCES ALL NaN\n" )
+                print( f"{list( k )}: DIFFERENCES ALL NaN\n" )
             else: difDct.update( { k: dfCompare } )
         if len( difDct ) < 1: print( "\nNON-NAN DIFFS FOR FEATS" )
         for k in difDct:
@@ -638,7 +639,32 @@ class dUtls:
             print( f"{report( tDict, k )}" )
             print( f"{len( difDf )} Non-NaN diffs for {list( k )}. First 3:" )
             display( HTML( difDf[ :3 ].to_html() ) )
-        # return difDct
+    
+    def reportStrongNeg( self, sigThresh ):
+        nDatFts = list( self.dat.DF.columns )
+        sortdCorrs = sorted( [ k for k in list( self.dat.corDct.i.keys() ) ] )
+        
+        # Exclude birthrate/urbaniztn version
+        collect, pos, exc = { }, 0, 0
+        excluded = [ ': Birth rate', ': Urbanization' ]
+        inThresh = True
+        while inThresh:
+            k = sortdCorrs[ pos ]
+            ftFSetLi = self.dat.corDct.i[ k ]
+            for fSetX, fSetY in ftFSetLi:
+                if True in [ x in y for x in excluded for y in [
+                    nDatFts[ fSetX ], nDatFts[ fSetY ] ] ]:
+                    exc += 1
+                    continue
+                else: collect.update(
+                    { k: [ nDatFts[ fSetX ], nDatFts[ fSetY ] ] } )
+            if k > sigThresh: inThresh = False
+            pos += 1
+        
+        n = "All" if ((L := len( collect )) == 0) else L
+        print( f"{n} of {exc} negative correlations stronger than {sigThresh=} "
+               f"\n    were for feature pairs that included at least one of "
+               f"\n    {excluded=}" )
 
 
 class biDict( dict ):
