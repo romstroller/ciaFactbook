@@ -16,10 +16,6 @@ from IPython.display import display, HTML
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-import importlib
-
-osOps = importlib.reload( osOps )  # DEVT_REMV # ###########################
-
 
 class nbData:
     """Notebook data instance. dUtls can be maintained separately"""
@@ -101,21 +97,21 @@ class dUtls:
         
         pos, rmnder, mtches_ret = 0, [ ], [ ]
         for roVal in self.dat.OR.iloc[ :, coIdex ]:
-            matchLi = mtches[ pos ]
-            if type( matchLi ) != list: rmnt = None  # is float; no remain
-            elif len( matchLi ) == 1: rmnt = roVal
+            mchLi = mtches[ pos ]
+            if type( mchLi ) != list: rmnt = None  # is float; no remain
+            elif len( mchLi ) == 1: rmnt = roVal
             # if more than one, truncate remainder before second match
-            elif len( matchLi ) > 1: rmnt = roVal[ :roVal.index( matchLi[ 1 ] ) ]
+            elif len( mchLi ) > 1: rmnt = roVal[ :roVal.index( mchLi[ 1 ] ) ]
             else: rmnt = None
             
             if rmnt:
                 # exclude any parenthesised matches
-                matchLi = excludeParenth( mtches[ pos ], roVal )
-                mtches_ret.append( matchLi )
-                if len( matchLi ) > 0:
-                    rmnder.append( rmnt.replace( matchLi[ 0 ], '' ) )
+                mchLi = excludeParenth( mtches[ pos ], roVal )
+                mtches_ret.append( mchLi )
+                if len( mchLi ) > 0:
+                    rmnder.append( rmnt.replace( mchLi[ 0 ], '' ) )
             else:
-                if type( matchLi ) == float: mtches_ret.append( matchLi )
+                if type( mchLi ) == float: mtches_ret.append( mchLi )
                 else: mtches_ret.append( np.nan )
                 rmnder.append( "" )
             
@@ -126,24 +122,24 @@ class dUtls:
     def isolateClean( self ):
         # apply split-sort to match records
         for col, colDict in self.dat.prsDct.items():
-            firstVals, splitVals, checkVals = [ ], [ ], [ ]
+            frstVals, splitVals, checkVals = [ ], [ ], [ ]
             for mNum in range( len( colDict[ 'matchedNums' ] ) ):
                 el = colDict[ 'matchedNums' ][ mNum ]
                 isFilldList = (type( el ) == list) and (len( el ) > 0)
-                if isFilldList:  # remove any thousandcomma to support convert
-                    firstVals.append( float( ''.join( el[ 0 ].split( ',' ) ) ) )
+                if isFilldList:  # remove any thouscomma to support convert
+                    frstVals.append( float( ''.join( el[ 0 ].split( ',' ) ) ) )
                     splitVals.append( [ v for v in el[ 1: ] ] )
                 elif type( el ) == np.float64:
-                    firstVals.append( float( el ) )
+                    frstVals.append( float( el ) )
                 else:  # check all else are either nan or empty matchlist
                     if ((type( el ) == list and len( el ) > 0) or
                         (type( el ) != list and math.isnan( el ) is False)):
                         checkVals.append( el )
-                    firstVals.append( np.nan )
+                    frstVals.append( np.nan )
                     splitVals.append( np.nan )
             
             (colDict[ 'clean' ], colDict[ 'splitVals' ],
-            colDict[ 'checkVals' ]) = firstVals, splitVals, checkVals
+            colDict[ 'checkVals' ]) = frstVals, splitVals, checkVals
             
             # Report uncategorized data (eg val for each different type)
             if len( colDict[ 'checkVals' ] ) > 0:
@@ -213,8 +209,7 @@ class dUtls:
     
     def runScaleAnalysis( self, dfr, remDict ):
         colList = list( dfr.columns )
-        dropFeatrs = [ ]
-        cleanNotes = { }
+        dropFeatrs, cleanNotes = [ ], { }
         
         for pos in range( 1, len( colList ) ):
             colNam = colList[ pos ]
@@ -226,8 +221,8 @@ class dUtls:
                 else: rMainPrint = rMainPrint + f"{r[ :60 ]}\n"
             
             report = (f"COL [ {pos} ] {colNam}\n\n"
-                      f"CLEANVALS:\n{colSeg}\n\n"
-                      f"REMAINDER (unq in col: {len( remndr )}):\n{rMainPrint}\n")
+                      f"CLNVALS:\n{colSeg}\n\n"
+                      f"REMNDER: {len( remndr )}):\n{rMainPrint}\n")
             
             report_a = report + "\nACCEPT(A), BREAK(B), SCALE NOTE(C), DROP(D)"
             report_b = report_a + "\n\nPLEASE MAKE A SELECTION:\n\n"
@@ -237,7 +232,7 @@ class dUtls:
             elif usinp == 'a': continue
             elif usinp == 'd': dropFeatrs.append( colNam )
             else: cleanNotes.update( {
-                colNam: input( f"{report[ :250 ]}...\n\n\nCLEANING/SCALE NOTE" ) } )
+                colNam: input( f"{report[ :250 ]}\n\n\nCLEAN/SCALE NOTE" ) } )
         
         def fName( ob ): return f'{ob=}'.split( '=' )[ 0 ]
         
@@ -286,9 +281,9 @@ class dUtls:
                 for scale in scaleDict:  # apply lowest-index matched scale
                     try: matches.append( [ remnt.index( scale ), scale ] )
                     except ValueError: continue
-                if len( matches ) > 0:  # sort by lowest index (first val of match)
-                    matchScale = sorted( matches, key=lambda x: x[ 0 ] )[ 0 ][ 1 ]
-                    val = val * scaleDict[ matchScale ]
+                if len( matches ) > 0:  # sort by low-index (first match val)
+                    mScale = sorted( matches, key=lambda x: x[ 0 ] )[ 0 ][ 1 ]
+                    val = val * scaleDict[ mScale ]
                 
                 colVals.append( val )
             
@@ -374,7 +369,7 @@ class dUtls:
         for k, v in _unts.items():
             unt = None
             if not v: continue  # no common string (col was float)
-            for key, patD in unitPatDct.items():  # unit from re patt if segment
+            for key, patD in unitPatDct.items():  # unit from re patt if segmt
                 if True in [ key in vv[ 0 ] for vv in v[ :5 ] ]:
                     # checkMatchHalf( k, patD[ 'patt' ] )
                     if checkMatchHalf( k, patD[ 'patt' ] ):
@@ -537,15 +532,18 @@ class dUtls:
         plt.xticks( rotation=45, ha='right' )
         plt.show()
     
-    def plotScttr( self, fts, fts2 = None, df = None ):
+    def plotScttr( self, fts, fts2 = None, df = None, mask = None ):
         if not df: df = self.dat.DF
+        try: df = df[ mask ] if mask.any() else df
+        except AttributeError: pass
         
         if fts2:
             fig, (ax1, ax2) = plt.subplots( 1, 2 )  # sharey='all'
             ax1.scatter( df[ fts[ 0 ] ], df[ fts[ 1 ] ], c='black' )
             ax2.scatter( df[ fts2[ 0 ] ], df[ fts2[ 1 ] ], c='black' )
             for side, g in zip( [ 'LEFT', 'RIGHT' ], [ fts, fts2 ] ):
-                for f, ax in zip( g, [ 'X', 'Y' ] ): print( f"{side} {ax}: {f}" )
+                for f, ax in zip( g, [ 'X', 'Y' ] ):
+                    print( f"{side} {ax}: {f}" )
         else:
             x, y = df[ fts[ 0 ] ], df[ fts[ 1 ] ]
             plt.figure( figsize=(16, 9), facecolor="silver" )
