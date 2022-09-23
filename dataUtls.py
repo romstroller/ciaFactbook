@@ -404,7 +404,7 @@ class dUtls:
             self.dat.NU[ _ft ].values.tolist() if np.isfinite( v ) ] } )
         
         p1 = sns.displot(
-            data=_df, x=_ft, kind='hist', bins=_df.shape[ 0 ], stat='density' )
+            data=_df, x=_ft, kind='hist', bins=_df.shape[ 0 ], stat='density')
         p1.figure.set_figwidth( 16 )
         p1.figure.set_figheight( 9 )
         p1.figure.set_facecolor( 'Silver' )
@@ -497,7 +497,7 @@ class dUtls:
         df = None, mask = None, short = False ):
         # check non-default DF or df mask
         if not df: df = self.dat.DF
-        try: df = df[ mask ] if mask.any() else df
+        try: df = df.loc[ mask ] if mask.any() else df
         except AttributeError: pass
         
         df10 = pd.concat( [ df[ 'Country' ],
@@ -507,7 +507,7 @@ class dUtls:
         fig = plt.figure( facecolor="silver" )
         height = 3.0 if short else 1.6
         ax = fig.add_axes( [ 0, 0, height, 1.2 ] )
-        ax.bar( df10.iloc[ :, 0 ], df10.iloc[ :, 1 ] )
+        bars = ax.bar( df10.iloc[ :, 0 ], df10.iloc[ :, 1 ], edgecolor="black" )
         
         n = n if (le := df.shape[ 0 ]) >= n else le  # if small df
         title = f"{'BOTTOM' if asc else 'TOP'} {n}\n{ft}"  # adjust label
@@ -516,7 +516,7 @@ class dUtls:
         # unit: default add from dict
         if not unit:
             try: unit = self.dat.untDct[ ft ]
-            except KeyError: unit = "SET UNIT"
+            except KeyError: unit = "\n\nUNIT NOT SET"
         if unit == "_": unit = None
         
         title = f"{title}\n{unit}" if unit else title
@@ -530,12 +530,38 @@ class dUtls:
             tick.label.set_color( 'black' )
         
         plt.xticks( rotation=45, ha='right' )
+        
+        def gradientbars_sliced( _bars ):
+            _ax = _bars[ 0 ].axes
+            xmin, xmax = _ax.get_xlim()
+            ymin, ymax = _ax.get_ylim()
+            for bar in _bars:
+                bar.set_zorder( 1 )
+                bar.set_facecolor( "none" )
+                x, y = bar.get_xy()
+                w, h = bar.get_width(), bar.get_height()
+                grad = np.linspace( y, y + h, 256 ).reshape( 256, 1 )
+                _ax.imshow( grad, extent=[ x, x + w, y, y + h ], aspect="auto",
+                    zorder=0, origin='lower', vmin=ymin, vmax=ymax,
+                    cmap='magma' )
+            _ax.axis( [ xmin, xmax, ymin, ymax ] )
+        
+        gradientbars_sliced( bars )
+        
         plt.show()
     
-    def plotScttr( self, fts, fts2 = None, df = None, mask = None ):
+    def plotScttr( self, fts, fts2 = None, df = None, mask = None, uns = None ):
         if not df: df = self.dat.DF
-        try: df = df[ mask ] if mask.any() else df
+        try: df = df.loc[ mask ] if mask.any() else df
         except AttributeError: pass
+        
+        # unit default from dict, fail "NOT SET", uscore to skip
+        if not uns:
+            try: uns = [ self.dat.untDct[ ft ] for ft in fts ]
+            except KeyError: uns = [ "\n\n"+(na := "UNIT NOT SET"), na ]
+        if uns == "_": uns = [ None, None ]
+        
+        xTit, yTit = [ f"{ft} ({u})" for ft, u in zip(fts, uns) ]
         
         if fts2:
             fig, (ax1, ax2) = plt.subplots( 1, 2 )  # sharey='all'
@@ -548,21 +574,26 @@ class dUtls:
             x, y = df[ fts[ 0 ] ], df[ fts[ 1 ] ]
             plt.figure( figsize=(16, 9), facecolor="silver" )
             plt.plot( x, y, 'o', color='black' )
-            plt.xlabel( fts[ 0 ] )
-            plt.ylabel( fts[ 1 ] )
+            plt.xlabel( xTit )
+            plt.ylabel( yTit )
             print( f"Feats: [ {fts[ 0 ]} ]\n       [ {fts[ 1 ]} ]" )
         
         plt.show()
     
-    def getRank( self, ctry, ft ):
+    def getRank( self, ctry, ft, asc = False ):
         df = self.dat.DF
         value = df[ ft ].loc[ df[ 'Country' ] == ctry ].values[ 0 ]
         if str( value ) == 'nan': return print( f"{ctry} is null for\n{ft}" )
-        rank = len( [ v for v in pd.Series( df[ ft ] ) if v < value ] )
+        
+        def ranks( val, v ): return (val < v) if not asc else (val > v)
+        
+        order = "DESCENDING" if not asc else "ASCENDING"
+        
+        rank = len( [ v for v in pd.Series( df[ ft ] ) if ranks( value, v ) ] )
         ties = len( [ v for v in pd.Series( df[ ft ] ) if v == value ] ) - 1
         
         print( f"With value of [ {value} ], {ctry} is ranked {rank} for:\n"
-               f"    '{ft}'\n    (out of total {df.shape[ 0 ]} ranked)" )
+               f"    '{ft}'\n    (total {df.shape[ 0 ]}, ranked {order})" )
         if ties > 0: print( f"    TIED WITH {ties} COUNTRIES" )
     
     def dfPrint( self, _df = None ):
@@ -663,6 +694,18 @@ class dUtls:
         print( f"{n} of {exc} negative correlations stronger than {sigThresh=} "
                f"\n    were for feature pairs that included at least one of "
                f"\n    {excluded=}" )
+    
+    def setMean( self, _ft, ctry, dfs ):
+        # Set feature value for Country to mean ( feature excl. Ctry )
+        
+        nonCtryMean = self.dat.DF.loc[
+            self.dat.DF[ 'Country' ] != ctry ][ _ft ].mean()
+        
+        for i, df in enumerate( dfs ):
+            ctry = ctry if i == 0 else self.dat.ctrDct.i[ ctry ][ 0 ]
+            df.iat[
+                (df.Country.to_list()).index( ctry ),
+                (df.columns.to_list()).index( _ft ) ] = nonCtryMean
 
 
 class biDict( dict ):
