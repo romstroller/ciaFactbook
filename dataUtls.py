@@ -28,7 +28,7 @@ class nbData:
         self.prsDct = None  # parsed column data eg. for number match
         self.ctrDct = None  # bidrectional dict for country code convert
         self.corDct = None  # correlation lookup table between all features
-        self.untDct = { }  # lookup for feature units
+        self.untDct = { }  # feature unit lookup
 
 
 class dUtls:
