@@ -199,14 +199,12 @@ class dUtls:
         preDim, posDim = [ _df.shape[ 0 ] * _df.shape[ 1 ] for _df in dfLi ]
         ins = (inset + 5) * " "  # len dtstamp + list/bracket formatting
         print(
-            f"{ins}BEFORE\n"
-            f"{ins}    shape: {dfLi[ 0 ].shape}\n"
-            f"{ins}    NAN-density: {(preIsNa / preDim) * 100:.2f}%\n"
-            f"{ins}    {preIsNa} NaN in {preDim} values\n"
-            f"{ins}AFTER\n"
-            f"{ins}    shape: {dfLi[ 1 ].shape}\n"
-            f"{ins}    NAN-density: {(posIsNa / posDim) * 100:.2f}%\n"
-            f"{ins}    {posIsNa} NaN in {posDim} values)\n" )
+            f"{ins}BEFORE: shape {dfLi[ 0 ].shape}\n"
+            f"{ins}        NAN-density: {(preIsNa / preDim) * 100:.2f}%\n"
+            f"{ins}        {preIsNa} NaN in {preDim} values\n"
+            f"{ins}AFTER:  shape {dfLi[ 1 ].shape}\n"
+            f"{ins}        NAN-density: {(posIsNa / posDim) * 100:.2f}%\n"
+            f"{ins}        {posIsNa} NaN in {posDim} values)\n" )
     
     def runScaleAnalysis( self, dfr, remDict ):
         colList = list( dfr.columns )
