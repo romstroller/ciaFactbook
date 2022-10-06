@@ -190,22 +190,23 @@ class dUtls:
         dfNum.insert( 0, 'Country', self.dat.CL.iloc[ :, 0 ].tolist()[ 1: ] )
         self.dat.CL = dfNum
         self.tPrint( "Enforced non-NaN threshold in data" )
+        self.cleanReport( [ self.dat.OR, self.dat.CL ],
+            inset=len( self.osKit.dtStamp() ) )
     
-    def cleanReport( self, dfLi = None ):
-        if not dfLi: dfPre, dfPost = self.dat.OR, self.dat.CL
-        else:  dfPre, dfPost = dfLi
-        
-        preIsNa = dfPre.isna().sum().sum()
-        posIsNa = dfPost.isna().sum().sum()
-        preDim = dfPre.shape[ 0 ] * dfPre.shape[ 1 ]
-        posDim = dfPost.shape[ 0 ] * dfPost.shape[ 1 ]
+    def cleanReport( self, dfLi = None, inset = None ):
+        if not dfLi: dfLi = [ self.dat.OR, self.dat.CL ]
+        preIsNa, posIsNa = [ _df.isna().sum().sum() for _df in dfLi ]
+        preDim, posDim = [ _df.shape[ 0 ] * _df.shape[ 1 ] for _df in dfLi ]
+        ins = (inset + 5) * " "  # len dtstamp + list/bracket formatting
         print(
-            f"    BEFORE shape: {dfPre.shape}, "
-            f"NAN-density: {(preIsNa / preDim) * 100:.2f}% "
-            f"({preIsNa} NaN in {preDim} values)\n"
-            f"    AFTER shape: {dfPost.shape}, "
-            f"NAN-density: {(posIsNa / posDim) * 100:.2f}% "
-            f"({posIsNa} NaN in {posDim} values)\n" )
+            f"{ins}BEFORE\n"
+            f"{ins}    shape: {dfLi[ 0 ].shape}\n"
+            f"{ins}    NAN-density: {(preIsNa / preDim) * 100:.2f}%\n"
+            f"{ins}    {preIsNa} NaN in {preDim} values\n"
+            f"{ins}AFTER\n"
+            f"{ins}    shape: {dfLi[ 1 ].shape}\n"
+            f"{ins}    NAN-density: {(posIsNa / posDim) * 100:.2f}%\n"
+            f"{ins}    {posIsNa} NaN in {posDim} values)\n" )
     
     def runScaleAnalysis( self, dfr, remDict ):
         colList = list( dfr.columns )
@@ -404,7 +405,7 @@ class dUtls:
             self.dat.NU[ _ft ].values.tolist() if np.isfinite( v ) ] } )
         
         p1 = sns.displot(
-            data=_df, x=_ft, kind='hist', bins=_df.shape[ 0 ], stat='density')
+            data=_df, x=_ft, kind='hist', bins=_df.shape[ 0 ], stat='density' )
         p1.figure.set_figwidth( 16 )
         p1.figure.set_figheight( 9 )
         p1.figure.set_facecolor( 'Silver' )
@@ -558,10 +559,10 @@ class dUtls:
         # unit default from dict, fail "NOT SET", uscore to skip
         if not uns:
             try: uns = [ self.dat.untDct[ ft ] for ft in fts ]
-            except KeyError: uns = [ "\n\n"+(na := "UNIT NOT SET"), na ]
+            except KeyError: uns = [ "\n\n" + (na := "UNIT NOT SET"), na ]
         if uns == "_": uns = [ None, None ]
         
-        xTit, yTit = [ f"{ft} ({u})" for ft, u in zip(fts, uns) ]
+        xTit, yTit = [ f"{ft} ({u})" for ft, u in zip( fts, uns ) ]
         
         if fts2:
             fig, (ax1, ax2) = plt.subplots( 1, 2 )  # sharey='all'
